@@ -713,6 +713,11 @@ input[type='range'].range::-webkit-slider-thumb {
 	opacity: 0;
 	transition: opacity 0.15s ease, transform 0.15s ease;
 }
+/* The main player timeline belongs to the top edge of the bar. Keep its visual track flush and
+   full-width while the range input's 16px box provides a forgiving seek target. */
+input[type='range'].range.player-progress::-webkit-slider-runnable-track {
+	border-radius: 0;
+}
 /* Theater mode's bar is the width of the cover and is being read from across a room, where 4px on
    that width reads as a hairline. */
 input[type='range'].range.theater-range::-webkit-slider-runnable-track {

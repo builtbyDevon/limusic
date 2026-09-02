@@ -139,8 +139,23 @@
 <footer
 	onpointerdown={(e) => (pressedControl = isControl(e.target))}
 	onclick={onBarClick}
-	class="flex items-center gap-2 border-t bg-card px-2 py-2.5 sm:gap-4 sm:px-4 sm:py-3"
+	class="relative flex items-center gap-2 border-t bg-card px-2 py-2.5 sm:gap-4 sm:px-4 sm:py-3"
 >
+	<!-- Keep the primary timeline on the player's top edge, matching YouTube Music. Its larger
+	     transparent hit area straddles the edge so it remains easy to grab without making the
+	     visible track thicker. -->
+	<input
+		type="range"
+		class="range player-progress absolute inset-x-0 top-0 z-10 w-full -translate-y-1/2"
+		style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%; --range-fill:{sourceQuality.color}"
+		min="0"
+		max={playback.duration || 0}
+		value={shownPosition}
+		oninput={onSeekInput}
+		onchange={onSeekCommit}
+		aria-label={t('player.seek')}
+	/>
+
 	<!-- Now playing. data-ctx: right-clicking the cover or the title opens the ⋮ menu for the track
 	     that's playing (not the buttons beside them — those keep their own meaning). -->
 	<div class="flex min-w-0 flex-1 items-center gap-3" data-ctx>
@@ -274,74 +289,68 @@
 	</div>
 
 	<!-- Transport -->
-	<div class="flex flex-[1.5] flex-col items-center gap-1">
-		<div class="flex items-center gap-1">
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				onclick={() => api.toggleShuffle()}
-				aria-label={t('player.shuffle')}
-				aria-pressed={shuffleOn}
-			>
-				<HugeiconsIcon
-					icon={ShuffleIcon}
-					class="h-4 w-4 {shuffleOn ? 'text-primary' : 'text-muted-foreground'}"
-				/>
-			</Button>
-			<Button variant="ghost" size="icon-sm" onclick={() => api.prevTrack()} aria-label={t('player.previous')}>
-				<HugeiconsIcon icon={PreviousIcon} class="h-5 w-5" />
-			</Button>
-			<Button
-				variant="default"
-				size="icon"
-				class="rounded-full"
-				onclick={() => api.togglePause()}
-				aria-label={playback.paused ? t('player.play') : t('player.pause')}
-			>
-				<!-- HugeiconsIcon only re-renders `altIcon`/`showAlt`, not `icon` (frozen at mount) —
-			     so toggle via showAlt, not a ternary on `icon`. -->
-			<HugeiconsIcon
-				icon={PauseIcon}
-				altIcon={PlayIcon}
-				showAlt={playback.paused}
-				class="h-5 w-5"
-			/>
-			</Button>
-			<Button variant="ghost" size="icon-sm" onclick={() => api.nextTrack()} aria-label={t('player.next')}>
-				<HugeiconsIcon icon={NextIcon} class="h-5 w-5" />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				onclick={cycleRepeat}
-				aria-label={t('player.repeat_state', {
-					state: repeat === 'off' ? t('player.repeat_off') : repeat === 'one' ? t('player.repeat_one') : t('player.repeat_all')
-				})}
-				aria-pressed={repeat !== 'off'}
-			>
-				<!-- icon swap via altIcon/showAlt — `icon` is frozen at mount (see play/pause above) -->
-				<HugeiconsIcon
-					icon={RepeatIcon}
-					altIcon={RepeatOne01Icon}
-					showAlt={repeat === 'one'}
-					class="h-4 w-4 {repeat !== 'off' ? 'text-primary' : 'text-muted-foreground'}"
-				/>
-			</Button>
-		</div>
-		<div class="flex w-full max-w-md items-center gap-2 text-xs text-muted-foreground">
-			<span class="tabular-nums">{fmt(shownPosition)}</span>
-			<input
-				type="range"
-				class="range flex-1"
-				style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%; --range-fill:{sourceQuality.color}"
-				min="0"
-				max={playback.duration || 0}
-				value={shownPosition}
-				oninput={onSeekInput}
-				onchange={onSeekCommit}
-				aria-label={t('player.seek')}
-			/>
-			<span class="tabular-nums">{fmt(playback.duration)}</span>
+	<div class="flex flex-[1.5] items-center justify-center">
+		<div class="grid w-full max-w-md grid-cols-[1fr_auto_1fr] items-center text-xs text-muted-foreground">
+			<span class="justify-self-start tabular-nums">{fmt(shownPosition)}</span>
+			<div class="flex items-center gap-1 text-foreground">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					onclick={() => api.toggleShuffle()}
+					aria-label={t('player.shuffle')}
+					aria-pressed={shuffleOn}
+				>
+					<HugeiconsIcon
+						icon={ShuffleIcon}
+						class="h-4 w-4 {shuffleOn ? 'text-primary' : 'text-muted-foreground'}"
+					/>
+				</Button>
+				<Button variant="ghost" size="icon-sm" onclick={() => api.prevTrack()} aria-label={t('player.previous')}>
+					<HugeiconsIcon icon={PreviousIcon} class="h-5 w-5" />
+				</Button>
+				<Button
+					variant="default"
+					size="icon"
+					class="rounded-full"
+					onclick={() => api.togglePause()}
+					aria-label={playback.paused ? t('player.play') : t('player.pause')}
+				>
+					<!-- HugeiconsIcon only re-renders `altIcon`/`showAlt`, not `icon` (frozen at mount) —
+					     so toggle via showAlt, not a ternary on `icon`. -->
+					<HugeiconsIcon
+						icon={PauseIcon}
+						altIcon={PlayIcon}
+						showAlt={playback.paused}
+						class="h-5 w-5"
+					/>
+				</Button>
+				<Button variant="ghost" size="icon-sm" onclick={() => api.nextTrack()} aria-label={t('player.next')}>
+					<HugeiconsIcon icon={NextIcon} class="h-5 w-5" />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					onclick={cycleRepeat}
+					aria-label={t('player.repeat_state', {
+						state:
+							repeat === 'off'
+								? t('player.repeat_off')
+								: repeat === 'one'
+									? t('player.repeat_one')
+									: t('player.repeat_all')
+					})}
+					aria-pressed={repeat !== 'off'}
+				>
+					<!-- icon swap via altIcon/showAlt — `icon` is frozen at mount (see play/pause above) -->
+					<HugeiconsIcon
+						icon={RepeatIcon}
+						altIcon={RepeatOne01Icon}
+						showAlt={repeat === 'one'}
+						class="h-4 w-4 {repeat !== 'off' ? 'text-primary' : 'text-muted-foreground'}"
+					/>
+				</Button>
+			</div>
+			<span class="justify-self-end tabular-nums">{fmt(playback.duration)}</span>
 		</div>
 	</div>
 
