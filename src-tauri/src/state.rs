@@ -1,7 +1,7 @@
 //! App state: transport, player, db, and the queue/playback manager. context/11.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -17,6 +17,7 @@ use tokio::sync::Mutex;
 
 use crate::db::{now_secs, Db};
 use crate::discord::DiscordHandle;
+use crate::eclipse::{EclipseResolver, RequestedQuality, TrackQuery};
 use crate::listentogether::{LtSession, SyncCommand};
 use crate::media::MediaHandle;
 use crate::orchestrator::{Orchestrator, PlaybackData, PlaybackPing, ResolveError};
@@ -38,6 +39,8 @@ pub struct AppState {
     pub db: Arc<Db>,
     pub app: AppHandle,
     pub orchestrator: Arc<Orchestrator>,
+    /// Native Eclipse addon resolver. Its private addon and stream URLs remain backend-only.
+    pub eclipse: Arc<EclipseResolver>,
     /// Listen Together session (context/19). Drives host broadcasts + guest gating.
     pub lt: Arc<LtSession>,
     /// mpv's on-disk audio cache dir (context/14) — wiped by the settings "Clear caches" action.
@@ -292,6 +295,10 @@ struct QueueState {
     /// The client that served the primed lookahead track — promoted to `current_client` on a
     /// gapless advance so the failure feedback still knows the client.
     lookahead_client: Option<String>,
+    /// mpv applies request headers globally, so gapless enqueue is safe only when adjacent tracks
+    /// use the same headers. This especially protects an Eclipse URL after a private upload.
+    current_headers: HashMap<String, String>,
+    lookahead_headers: Option<HashMap<String, String>>,
     /// Loudness gain (dB) for the primed lookahead. mpv's `af` is global, so this can't ride along
     /// with the appended entry — it's applied when the gapless advance is observed.
     lookahead_gain: Option<Option<f64>>,
@@ -350,6 +357,7 @@ impl AppState {
         db: Arc<Db>,
         app: AppHandle,
         orchestrator: Arc<Orchestrator>,
+        eclipse: Arc<EclipseResolver>,
         lt: Arc<LtSession>,
         cache_dir: std::path::PathBuf,
         media: Option<MediaHandle>,
@@ -363,6 +371,7 @@ impl AppState {
             db,
             app,
             orchestrator,
+            eclipse,
             lt,
             cache_dir,
             media,
@@ -756,12 +765,13 @@ impl AppState {
         v
     }
 
-    /// `is_upload` comes off the queue row, never off `/player`: the response that has to be
-    /// handled here (LOGIN_REQUIRED) carries no `videoDetails` to read it from. Issue #71.
-    async fn resolve(&self, video_id: &str, is_upload: bool) -> Result<PlaybackData, ResolveError> {
+    /// Resolve one queue item. Local files and uploads keep their existing paths. Ordinary catalog
+    /// tracks ask Eclipse and YouTube concurrently: Eclipse supplies the audio URL while YouTube's
+    /// response preserves metadata and the watch-history ping that trains recommendations.
+    async fn resolve_item(&self, item: &SongItem) -> Result<PlaybackData, ResolveError> {
         // A local file is its own "stream": no network, no cache, no extraction (local.rs).
-        if let Some(path) = crate::local::song_path(video_id) {
-            return crate::local::playback_data(video_id, path).map_err(|_| {
+        if let Some(path) = crate::local::song_path(&item.video_id) {
+            return crate::local::playback_data(&item.video_id, path).map_err(|_| {
                 // Gone since the last scan. Forget it here rather than at the next scan, and say
                 // so — the UI drops the row (and any Shortcuts tile) on the spot instead of
                 // leaving something that can only fail again.
@@ -770,6 +780,71 @@ impl AppState {
                 ResolveError::LocalMissing(path.to_owned())
             });
         }
+        let lossless_enabled = self.db.get_setting("eclipse_lossless").as_deref() != Some("false");
+        if item.is_upload || !lossless_enabled {
+            return self.resolve_youtube(&item.video_id, item.is_upload).await;
+        }
+
+        let query = TrackQuery {
+            video_id: item.video_id.clone(),
+            title: item.title.clone(),
+            artist: item.artists.clone(),
+            album: item.album.clone(),
+            duration_ms: match parse_duration_ms(item.duration.as_deref()) {
+                0 => None,
+                value => Some(value),
+            },
+        };
+        let quality =
+            RequestedQuality::from_setting(self.db.get_setting("eclipse_quality").as_deref());
+        let (youtube, eclipse) = tokio::join!(
+            self.resolve_youtube(&item.video_id, item.is_upload),
+            self.eclipse.resolve(&query, quality)
+        );
+        if let Ok(Some(stream)) = eclipse {
+            let client_label = stream.client_label();
+            let mut data = youtube.unwrap_or_else(|_| PlaybackData {
+                video_id: item.video_id.clone(),
+                stream_url: String::new(),
+                itag: 0,
+                headers: Default::default(),
+                expires_in_seconds: 0,
+                loudness_db: None,
+                playback_ping: None,
+                title: Some(item.title.clone()),
+                artists: Some(item.artists.clone()),
+                duration: query.duration_ms.map(|duration| (duration / 1000).to_string()),
+                thumbnail: item.thumbnail.clone(),
+                is_video: Some(false),
+                stream_client: String::new(),
+            });
+            data.stream_url = stream.url;
+            data.itag = 0;
+            data.headers.clear();
+            // YouTube loudness metadata describes YouTube's encode/master, not Eclipse's file.
+            data.loudness_db = None;
+            data.expires_in_seconds = 0;
+            data.stream_client = client_label;
+            data.is_video = Some(false);
+            tracing::info!(
+                video_id = %item.video_id,
+                source = %data.stream_client,
+                "playing native Eclipse lossless stream"
+            );
+            return Ok(data);
+        }
+        youtube
+    }
+
+    /// Existing YouTube resolver and URL cache, kept separate so Eclipse is always attempted before
+    /// a cached YouTube URL and a failed Eclipse GET can retry the same song through YouTube.
+    /// `is_upload` comes off the queue row, never off `/player`: the response that has to be
+    /// handled here (LOGIN_REQUIRED) carries no `videoDetails` to read it from. Issue #71.
+    async fn resolve_youtube(
+        &self,
+        video_id: &str,
+        is_upload: bool,
+    ) -> Result<PlaybackData, ResolveError> {
         // Latency cache first (context/11) — honor expiry, never a source of truth.
         // 60s safety margin: a URL that expires mid-load/mid-buffer fails as Raw(-13).
         let now = now_secs();
@@ -1351,6 +1426,7 @@ impl AppState {
             // lets a single-item repeat-all queue re-prime itself instead of "already primed".)
             q.lookahead_loaded = None;
             q.current_client = q.lookahead_client.take();
+            q.current_headers = q.lookahead_headers.take().unwrap_or_default();
             // New track is now playing → fresh history state (mirrors start_current).
             q.playback_ping = q.lookahead_playback_ping.take();
             q.cpn = innertube::generate_cpn();
@@ -1358,7 +1434,14 @@ impl AppState {
             q.duration = 0.0;
         }
         if let Some(item) = self.current_item().await {
-            self.emit_now_playing(&item, "gapless");
+            let client = self
+                .queue
+                .lock()
+                .await
+                .current_client
+                .clone()
+                .unwrap_or_else(|| "current".to_owned());
+            self.emit_now_playing(&item, &client);
             // Same as `start_current`: an autoplay-appended track carries no rating of its own.
             self.refresh_rating(&item.video_id, gen);
         }
@@ -1405,9 +1488,13 @@ impl AppState {
                 tracing::warn!(video_id = %vid, "WEB_REMIX stream failed on GET — marking + evicting");
                 self.orchestrator.mark_web_remix_failed(&vid).await;
             }
-            // Retry once for WEB_REMIX-served and cache-served URLs. A failure from a fallback
-            // client, or a second failure of the same id, advances as before.
-            if (c == MAIN_CLIENT || c == "cache") && !already_retried {
+            if c.starts_with("eclipse:") {
+                tracing::warn!(video_id = %vid, "Eclipse stream failed on GET — suppressing briefly");
+                self.eclipse.mark_stream_failed(&vid).await;
+            }
+            // Retry once for WEB_REMIX, cache, and Eclipse URLs. Eclipse is briefly suppressed
+            // above, so this same start goes straight through the YouTube fallback.
+            if (c == MAIN_CLIENT || c == "cache" || c.starts_with("eclipse:")) && !already_retried {
                 {
                     let mut q = self.queue.lock().await;
                     q.retried = Some(vid.clone());
@@ -1428,6 +1515,11 @@ impl AppState {
     /// Resolve + load the current track into mpv (replace). Returns false if resolve failed or the
     /// request was superseded.
     async fn start_current(self: &std::sync::Arc<Self>, gen: u64) -> bool {
+        // Every explicit start owns the one native player. Silence its previous file immediately;
+        // resolution and initial FLAC buffering can take a moment, but the old song must not keep
+        // sounding underneath that wait.
+        let _ = self.player.pause();
+        self.media_set_playing(false);
         // Resolve the current track, auto-skipping any that no client can play (dead / region-locked
         // videos — context/06 "no client could resolve") instead of stalling the queue on them.
         // Bounded: each failure advances current by one, so the loop terminates at the queue tail.
@@ -1436,7 +1528,7 @@ impl AppState {
                 return false; // user moved on
             }
             let Some(item) = self.current_item().await else { return false };
-            let resolved = self.resolve(&item.video_id, item.is_upload).await;
+            let resolved = self.resolve_item(&item).await;
             // A resolve takes seconds; a skip during it bumps the generation. Re-check before
             // acting on the result: an abandoned failure would otherwise move `current` under the
             // track that's already playing and leave a stale error banner (nothing clears it, the
@@ -1530,6 +1622,12 @@ impl AppState {
         {
             let mut q = self.queue.lock().await;
             q.current_client = Some(data.stream_client.clone());
+            q.current_headers = data.headers.clone();
+            if q.retried.as_deref() != Some(item.video_id.as_str())
+                || data.stream_client.starts_with("eclipse:")
+            {
+                q.retried = None;
+            }
             // Fresh play → fresh history state (context/01 §registerPlayback).
             q.playback_ping = data.playback_ping.clone();
             q.cpn = innertube::generate_cpn();
@@ -1587,14 +1685,16 @@ impl AppState {
                 }
                 next
             };
-            let (next_video, next_title, next_upload) = {
+            let next_item = {
                 let q = self.queue.lock().await;
                 match q.items.get(next_idx) {
-                    Some(item) => (item.video_id.clone(), item.title.clone(), item.is_upload),
+                    Some(item) => item.clone(),
                     None => return,
                 }
             };
-            match self.resolve(&next_video, next_upload).await {
+            let next_video = next_item.video_id.clone();
+            let next_title = next_item.title.clone();
+            match self.resolve_item(&next_item).await {
                 Ok(d) => {
                     self.enqueue_lookahead(gen, next_idx, &next_video, d).await;
                     return;
@@ -1654,14 +1754,19 @@ impl AppState {
             );
             return;
         }
-        // Headers are global in mpv; the direct-URL clients need none beyond UA, which the
-        // current track already set. Just append the URL.
+        // Headers are global in mpv. Never append across a source/header boundary: at EOF the
+        // normal explicit-load path applies the next track's own headers before playback.
+        if q.current_headers != data.headers {
+            tracing::debug!(index = next_idx, "lookahead headers differ — using explicit load");
+            return;
+        }
         if let Err(e) = self.player.enqueue(&data.stream_url) {
             tracing::warn!(error = %e, "enqueue lookahead failed");
             return;
         }
         q.lookahead_loaded = Some(next_idx);
         q.lookahead_client = Some(data.stream_client.clone());
+        q.lookahead_headers = Some(data.headers.clone());
         q.lookahead_gain = Some(loudness_gain(data.loudness_db));
         q.lookahead_playback_ping = data.playback_ping.clone();
         // Same backfill as start_current: a gapless advance emits this item straight from the
@@ -1704,12 +1809,15 @@ impl AppState {
     /// player (a second webview, created long after the track started) and the main window on a
     /// cold start both have to ask once instead of guessing.
     pub async fn playback_snapshot(&self) -> serde_json::Value {
-        let (duration, item) = {
+        let (duration, item, stream_client) = {
             let q = self.queue.lock().await;
-            (q.duration, q.items.get(q.current).cloned())
+            (q.duration, q.items.get(q.current).cloned(), q.current_client.clone())
         };
         serde_json::json!({
-            "now": item.as_ref().map(|i| Self::now_playing_json(i, "current")),
+            "now": item.as_ref().map(|i| Self::now_playing_json(
+                i,
+                stream_client.as_deref().unwrap_or("current")
+            )),
             "paused": !self.is_playing.load(Ordering::Relaxed),
             "position": self.current_position(),
             "duration": duration,
@@ -2437,7 +2545,8 @@ impl AppState {
         }
         // A Listen Together track is the host's; `Track` carries no upload flag and a guest could
         // not stream someone else's upload anyway.
-        let data = match self.resolve(&track.id, false).await {
+        let track_item = track_to_song(&track);
+        let data = match self.resolve_item(&track_item).await {
             Ok(d) => d,
             Err(e) => {
                 self.emit_error(&track.id, &e.to_string());

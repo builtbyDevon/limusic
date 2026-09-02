@@ -55,6 +55,7 @@
 	import LyricsView from './LyricsView.svelte';
 
 	const close = () => (ui.theaterOpen = false);
+	const sourceQuality = $derived(api.streamQuality(playback.now?.streamClient));
 
 	// Clicking an artist goes to their page, and a fullscreen view over it would just hide it. Same
 	// rule the now-playing view and the expanded lyrics panel use: navigating anywhere closes this.
@@ -489,7 +490,7 @@
 				<input
 					type="range"
 					class="range theater-range w-full"
-					style="--pct:{pct}%"
+					style="--pct:{pct}%; --range-fill:{sourceQuality.color}"
 					min="0"
 					max={playback.duration || 0}
 					value={shownPosition}

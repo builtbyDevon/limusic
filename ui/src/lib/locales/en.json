@@ -297,6 +297,13 @@
 			"experimental": "Experimental"
 		},
 		"playback": {
+			"eclipse_lossless": "Eclipse lossless playback",
+			"eclipse_lossless_hint": "Play matched Eclipse Cloud streams directly through LiMusic. YouTube remains the automatic fallback.",
+			"eclipse_unavailable": "No enabled Eclipse Cloud addon was found. Open Eclipse once and enable Cloud.",
+			"eclipse_quality": "Eclipse stream quality",
+			"eclipse_quality_hint": "Hi-Res asks for the best available file; the player badge reports what was actually delivered.",
+			"eclipse_quality_lossless": "Lossless",
+			"eclipse_quality_hi_res": "Hi-Res",
 			"audio_quality": "Audio quality",
 			"audio_quality_hint": "Higher quality uses more bandwidth.",
 			"quality_low": "Low",

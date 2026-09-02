@@ -5,6 +5,7 @@ mod commands;
 mod db;
 mod diagnostics;
 mod discord;
+mod eclipse;
 mod http;
 mod lastfm;
 mod listentogether;
@@ -335,6 +336,7 @@ pub fn run() {
                 cipher.clone(),
                 potoken.clone(),
             ));
+            let eclipse = Arc::new(eclipse::EclipseResolver::new());
 
             // OS media controls (MPRIS/SMTC/NowPlaying). Its callback resolves AppState lazily, so
             // it's fine to spawn before AppState is managed. context/16, D11.
@@ -366,6 +368,7 @@ pub fn run() {
                 db,
                 handle.clone(),
                 orchestrator,
+                eclipse,
                 lt,
                 cache_dir.clone(),
                 media,
@@ -518,6 +521,7 @@ pub fn run() {
             commands::forget_video_stream,
             commands::get_settings,
             commands::set_setting,
+            commands::get_eclipse_status,
             commands::get_stream_clients,
             commands::clear_caches,
             commands::get_account,

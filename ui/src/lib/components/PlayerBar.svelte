@@ -57,6 +57,7 @@
 	// Pop the heart once when the user favourites (not when un-favouriting). Reset on animation end
 	// so the next like can replay it.
 	let justLiked = $state(false);
+	const sourceQuality = $derived(api.streamQuality(playback.now?.streamClient));
 
 	function toggleLike() {
 		if (playback.rating !== 'like') justLiked = true;
@@ -192,6 +193,21 @@
 						<HugeiconsIcon icon={InfinityIcon} class="h-3.5 w-3.5" />
 					</span>
 				{/if}
+				{#if playback.now && sourceQuality.tone !== 'neutral'}
+					<span
+						class="shrink-0 rounded-full border px-1.5 py-0.5 text-[8px] font-extrabold tracking-[0.06em] {sourceQuality.tone ===
+						'hi-res'
+							? 'border-amber-400/45 bg-amber-400/10 text-amber-300'
+							: sourceQuality.tone === 'lossless'
+								? 'border-emerald-400/45 bg-emerald-400/10 text-emerald-400'
+								: 'border-red-400/40 bg-red-500/10 text-red-400'}"
+						title={sourceQuality.tone === 'youtube'
+							? 'YouTube fallback audio'
+							: 'Eclipse native audio'}
+					>
+						{sourceQuality.label}
+					</span>
+				{/if}
 			</div>
 			<ArtistLine
 				runs={playback.now?.artistRuns}
@@ -317,7 +333,7 @@
 			<input
 				type="range"
 				class="range flex-1"
-				style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%"
+				style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%; --range-fill:{sourceQuality.color}"
 				min="0"
 				max={playback.duration || 0}
 				value={shownPosition}

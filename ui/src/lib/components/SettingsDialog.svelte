@@ -148,6 +148,7 @@
 	);
 	let settings = $state<Record<string, string>>({});
 	let clients = $state<string[]>([]);
+	let eclipseAvailable = $state<boolean | null>(null);
 	let proxyInput = $state('');
 	let loaded = $state(false);
 	let clearing = $state(false);
@@ -237,9 +238,14 @@
 
 	async function load() {
 		try {
-			const [s, c] = await Promise.all([api.getSettings(), api.getStreamClients()]);
+			const [s, c, eclipse] = await Promise.all([
+				api.getSettings(),
+				api.getStreamClients(),
+				api.getEclipseStatus()
+			]);
 			settings = s;
 			clients = c;
+			eclipseAvailable = eclipse.available;
 			proxyInput = s.proxy ?? '';
 		} catch (e) {
 			toast.error(String(e));
@@ -248,6 +254,8 @@
 	}
 
 	const quality = $derived(settings.quality ?? 'HIGH');
+	const eclipseOn = $derived(settings.eclipse_lossless !== 'false');
+	const eclipseQuality = $derived(settings.eclipse_quality ?? 'hi_res');
 	const historyOn = $derived(settings.enable_history !== 'false');
 	const autoplayOn = $derived(settings.autoplay !== 'false');
 	const hideVideosOn = $derived(settings.hide_videos === 'true');
@@ -283,6 +291,16 @@
 		// Cached URLs are keyed by video only, so clear them to apply the new quality everywhere.
 		await api.clearCaches();
 		toast.success(t('toasts.quality_updated'));
+	}
+
+	async function setEclipse(on: boolean) {
+		settings.eclipse_lossless = on ? 'true' : 'false';
+		await api.setSetting('eclipse_lossless', settings.eclipse_lossless);
+	}
+
+	async function setEclipseQuality(quality: string) {
+		settings.eclipse_quality = quality;
+		await api.setSetting('eclipse_quality', quality);
 	}
 
 	async function setHistory(on: boolean) {
@@ -608,6 +626,19 @@
 							<h3 class={LABEL}>{t('settings.sections.audio')}</h3>
 							<div class={CARD}>
 								{@render row({
+									title: t('settings.playback.eclipse_lossless'),
+									desc: eclipseAvailable === false
+										? t('settings.playback.eclipse_unavailable')
+										: t('settings.playback.eclipse_lossless_hint'),
+									control: eclipseSwitch,
+									tall: true
+								})}
+								{@render row({
+									title: t('settings.playback.eclipse_quality'),
+									desc: t('settings.playback.eclipse_quality_hint'),
+									control: eclipseQualityPicker
+								})}
+								{@render row({
 									title: t('settings.playback.audio_quality'),
 									desc: t('settings.playback.audio_quality_hint'),
 									control: qualityPicker
@@ -792,6 +823,11 @@
 {#snippet discordSwitch()}<Switch checked={discordOn} onCheckedChange={setDiscord} />{/snippet}
 {#snippet traySwitch()}<Switch checked={trayOn} onCheckedChange={setTray} />{/snippet}
 {#snippet autostartSwitch()}<Switch checked={autostartOn} onCheckedChange={setAutostart} />{/snippet}
+{#snippet eclipseSwitch()}<Switch
+		checked={eclipseOn && eclipseAvailable !== false}
+		disabled={eclipseAvailable === false}
+		onCheckedChange={setEclipse}
+	/>{/snippet}
 {#snippet autoplaySwitch()}<Switch checked={autoplayOn} onCheckedChange={setAutoplay} />{/snippet}
 {#snippet dupSwitch()}<Switch
 		checked={preventDuplicatesOn}
@@ -1013,6 +1049,28 @@
 					: 'text-muted-foreground hover:text-foreground'}"
 			>
 				{t(q.key)}
+			</button>
+		{/each}
+	</div>
+{/snippet}
+
+{#snippet eclipseQualityPicker()}
+	<div class="flex rounded-lg bg-muted p-0.5">
+		{#each [
+			{ id: 'lossless', label: t('settings.playback.eclipse_quality_lossless') },
+			{ id: 'hi_res', label: t('settings.playback.eclipse_quality_hi_res') }
+		] as option (option.id)}
+			<button
+				type="button"
+				disabled={!eclipseOn || eclipseAvailable === false}
+				onclick={() => setEclipseQuality(option.id)}
+				aria-pressed={eclipseQuality === option.id}
+				class="cursor-pointer rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {eclipseQuality ===
+				option.id
+					? 'bg-background text-foreground shadow-sm'
+					: 'text-muted-foreground hover:text-foreground'}"
+			>
+				{option.label}
 			</button>
 		{/each}
 	</div>

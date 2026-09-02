@@ -45,6 +45,7 @@
 	let tab = $state<'queue' | 'lyrics'>('queue');
 
 	const now = $derived(playback.now);
+	const sourceQuality = $derived(api.streamQuality(now?.streamClient));
 	const shuffleOn = $derived(playback.queue.shuffle ?? false);
 	const repeat = $derived(playback.queue.repeat ?? 'off');
 	// A local file has no YouTube identity, so there is nothing to like (see api.isLocalId).
@@ -221,7 +222,7 @@
 			<input
 				type="range"
 				class="range on-art min-w-0 flex-1"
-				style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%"
+				style="--pct:{playback.duration ? (shownPosition / playback.duration) * 100 : 0}%; --range-fill:{sourceQuality.color}"
 				min="0"
 				max={playback.duration || 0}
 				value={shownPosition}

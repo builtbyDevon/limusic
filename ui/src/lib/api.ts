@@ -366,6 +366,26 @@ export const getPlayback = () => invoke<PlaybackSnapshot>('get_playback');
 export const getSettings = () => invoke<Record<string, string>>('get_settings');
 export const setSetting = (key: string, value: string) =>
 	invoke<void>('set_setting', { key, value });
+export const getEclipseStatus = () => invoke<{ available: boolean }>('get_eclipse_status');
+
+/** Display-only stream classification. The backend never exposes addon or media URLs. */
+export function streamQuality(streamClient?: string) {
+	const client = streamClient?.toLowerCase() ?? '';
+	if (client.startsWith('eclipse:') && client.includes(':hi-res')) {
+		return { label: 'HI-RES', color: '#dca83b', tone: 'hi-res' as const };
+	}
+	if (client.startsWith('eclipse:')) {
+		return {
+			label: client.includes(':unverified') ? 'ECLIPSE' : 'LOSSLESS',
+			color: '#1db954',
+			tone: 'lossless' as const
+		};
+	}
+	if (!client || ['local', 'current', 'restored', 'listen-together', 'gapless'].includes(client)) {
+		return { label: '', color: 'var(--primary)', tone: 'neutral' as const };
+	}
+	return { label: 'YOUTUBE', color: '#f40030', tone: 'youtube' as const };
+}
 /** Streamable client keys for the "disabled clients" setting. */
 export const getStreamClients = () => invoke<string[]>('get_stream_clients');
 /** Wipe both cache tiers (URL cache + mpv on-disk audio cache). */
