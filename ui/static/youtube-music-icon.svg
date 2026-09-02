@@ -18,7 +18,9 @@
     </filter>
   </defs>
   <rect width="1024" height="1024" rx="224" fill="url(#tile)"/>
-  <circle cx="512" cy="492" r="440" fill="url(#disc)" filter="url(#shadow)"/>
-  <circle cx="512" cy="492" r="232" fill="none" stroke="#fff" stroke-width="30"/>
-  <path fill="#fff" d="m432 620 202-128-202-118z"/>
+  <g transform="translate(512 492) scale(.93) translate(-512 -492)">
+    <circle cx="512" cy="492" r="440" fill="url(#disc)" filter="url(#shadow)"/>
+    <circle cx="512" cy="492" r="232" fill="none" stroke="#fff" stroke-width="30"/>
+    <path fill="#fff" d="m432 620 202-128-202-118z"/>
+  </g>
 </svg>
