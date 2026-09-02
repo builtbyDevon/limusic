@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Adapted from the YouTube Music icon on Wikimedia Commons:
+     https://commons.wikimedia.org/wiki/File:Youtube_Music_icon.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="YouTube Music">
+  <defs>
+    <linearGradient id="tile" x1="512" y1="1024" x2="512" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#07080d"/>
+      <stop offset="0.58" stop-color="#171a24"/>
+      <stop offset="1" stop-color="#303544"/>
+    </linearGradient>
+    <radialGradient id="disc" cx="0" cy="0" r="1" gradientTransform="translate(420 372) rotate(48) scale(610)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff244b"/>
+      <stop offset="0.55" stop-color="#ff0033"/>
+      <stop offset="1" stop-color="#d9002b"/>
+    </radialGradient>
+    <filter id="shadow" x="22" y="28" width="980" height="988" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="30" stdDeviation="38" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#tile)"/>
+  <circle cx="512" cy="492" r="440" fill="url(#disc)" filter="url(#shadow)"/>
+  <circle cx="512" cy="492" r="232" fill="none" stroke="#fff" stroke-width="30"/>
+  <path fill="#fff" d="m432 620 202-128-202-118z"/>
+</svg>

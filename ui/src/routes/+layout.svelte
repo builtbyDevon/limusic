@@ -1,6 +1,6 @@
 <script lang="ts">
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	const favicon = '/youtube-music-icon.svg';
 	import { ModeWatcher, mode } from 'mode-watcher';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {

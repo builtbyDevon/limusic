@@ -25,7 +25,7 @@
 	import LastFmIcon from './LastFmIcon.svelte';
 	import DiscordIcon from './DiscordIcon.svelte';
 	import AccountMenu from './AccountMenu.svelte';
-	import logo from '$lib/assets/favicon.svg';
+	const logo = '/youtube-music-icon.svg';
 	import * as api from '$lib/api';
 	import { openMiniPlayer, playback, toast, ui } from '$lib/player.svelte';
 	import { lt } from '$lib/lt.svelte';

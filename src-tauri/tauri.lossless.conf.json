@@ -1,0 +1,18 @@
+{
+  "productName": "LiMusic Lossless",
+  "build": {
+    "beforeBuildCommand": ""
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "icon": [
+      "icons-lossless/icon.png",
+      "icons-lossless/32x32.png",
+      "icons-lossless/64x64.png",
+      "icons-lossless/128x128.png",
+      "icons-lossless/128x128@2x.png",
+      "icons-lossless/icon.icns",
+      "icons-lossless/icon.ico"
+    ]
+  }
+}
