@@ -290,7 +290,7 @@
 
 	<!-- Transport -->
 	<div class="flex flex-[1.5] items-center justify-center">
-		<div class="grid w-full max-w-md grid-cols-[1fr_auto_1fr] items-center text-xs text-muted-foreground">
+		<div class="grid w-full max-w-xs grid-cols-[1fr_auto_1fr] items-center text-xs text-muted-foreground">
 			<span class="justify-self-start tabular-nums">{fmt(shownPosition)}</span>
 			<div class="flex items-center gap-1 text-foreground">
 				<Button
