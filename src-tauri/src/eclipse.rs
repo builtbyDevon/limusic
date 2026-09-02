@@ -136,10 +136,6 @@ impl EclipseResolver {
         failed.contains_key(video_id)
     }
 
-    pub async fn available(&self) -> bool {
-        self.discover_sources().await.is_ok_and(|sources| !sources.is_empty())
-    }
-
     pub async fn resolve(
         &self,
         track: &TrackQuery,
@@ -421,6 +417,15 @@ impl EclipseResolver {
         }
         Err(EclipseError::Request)
     }
+}
+
+/// A cheap settings-page probe that never waits on the resolver's async caches.
+/// Discovery is local-file-only on supported platforms, so keeping this synchronous also means a
+/// damaged Eclipse preferences file cannot hold the whole Settings dialog on its loading state.
+pub fn installed_available() -> bool {
+    load_installed_addons()
+        .map(|addons| !parse_sources(&addons, "QOBUZ").is_empty())
+        .unwrap_or(false)
 }
 
 fn clean_base_url(url: &str) -> String {

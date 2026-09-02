@@ -200,8 +200,8 @@ const UI_SETTINGS: [&str; 17] = [
 
 /// Safe Eclipse status for settings. Addon URLs and stream URLs never leave Rust.
 #[tauri::command]
-pub async fn get_eclipse_status(state: St<'_>) -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({ "available": state.eclipse.available().await }))
+pub fn get_eclipse_status() -> serde_json::Value {
+    serde_json::json!({ "available": crate::eclipse::installed_available() })
 }
 
 /// Resolve the music video for `video_id` and hand back a `limusicvideo://` URL the player view

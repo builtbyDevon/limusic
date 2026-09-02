@@ -821,8 +821,10 @@ impl AppState {
             data.stream_url = stream.url;
             data.itag = 0;
             data.headers.clear();
-            // YouTube loudness metadata describes YouTube's encode/master, not Eclipse's file.
-            data.loudness_db = None;
+            // Keep YouTube Music's per-track loudness measurement for the matched lossless master.
+            // mpv applies it as a fixed high-precision gain: no lossy re-encode, compressor, or
+            // limiter. `loudness_gain` is attenuate-only, so a slightly different master cannot be
+            // boosted into clipping.
             data.expires_in_seconds = 0;
             data.stream_client = client_label;
             data.is_video = Some(false);

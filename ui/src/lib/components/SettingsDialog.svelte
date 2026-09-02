@@ -238,19 +238,18 @@
 
 	async function load() {
 		try {
-			const [s, c, eclipse] = await Promise.all([
-				api.getSettings(),
-				api.getStreamClients(),
-				api.getEclipseStatus()
-			]);
+			const [s, c] = await Promise.all([api.getSettings(), api.getStreamClients()]);
 			settings = s;
 			clients = c;
-			eclipseAvailable = eclipse.available;
 			proxyInput = s.proxy ?? '';
 		} catch (e) {
 			toast.error(String(e));
 		}
 		loaded = true;
+		api
+			.getEclipseStatus()
+			.then((eclipse) => (eclipseAvailable = eclipse.available))
+			.catch(() => (eclipseAvailable = false));
 	}
 
 	const quality = $derived(settings.quality ?? 'HIGH');
