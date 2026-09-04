@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {
-		PlayIcon,
 		ShuffleIcon,
 		RepeatIcon,
 		RepeatOne01Icon,
@@ -314,7 +313,7 @@
 					aria-label={playback.paused ? t('player.play') : t('player.pause')}
 				>
 					{#if playback.paused}
-						<HugeiconsIcon icon={PlayIcon} class="h-5 w-5" />
+						<SolidTransportIcon kind="play" class="h-5 w-5" />
 					{:else}
 						<SolidTransportIcon kind="pause" class="h-5 w-5" />
 					{/if}

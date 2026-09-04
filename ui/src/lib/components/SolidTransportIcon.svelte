@@ -1,9 +1,11 @@
 <script lang="ts">
-	type TransportIcon = 'pause' | 'previous' | 'next';
+	type TransportIcon = 'play' | 'pause' | 'previous' | 'next';
 
 	let { kind, class: cls = '' }: { kind: TransportIcon; class?: string } = $props();
 
 	const paths: Record<TransportIcon, string> = {
+		play:
+			'M240 128a15.74 15.74 0 0 1-7.6 13.51L88.32 229.65a16 16 0 0 1-16.2.3A15.86 15.86 0 0 1 64 216.13V39.87a15.86 15.86 0 0 1 8.12-13.82 16 16 0 0 1 16.2.3L232.4 114.49A15.74 15.74 0 0 1 240 128Z',
 		pause:
 			'M216 48V208a16 16 0 0 1-16 16h-40a16 16 0 0 1-16-16V48a16 16 0 0 1 16-16h40a16 16 0 0 1 16 16ZM96 32H56a16 16 0 0 0-16 16V208a16 16 0 0 0 16 16H96a16 16 0 0 0 16-16V48A16 16 0 0 0 96 32Z',
 		previous:
