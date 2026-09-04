@@ -9,12 +9,8 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { Search01Icon } from '@hugeicons/core-free-icons';
-	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import MediaCardSkeleton from '$lib/components/MediaCardSkeleton.svelte';
-	import SearchSuggest from '$lib/components/SearchSuggest.svelte';
 	import TrackRow from '$lib/components/TrackRow.svelte';
 	import TrackRowSkeleton from '$lib/components/TrackRowSkeleton.svelte';
 	import ErrorState from '$lib/components/ErrorState.svelte';
@@ -117,27 +113,9 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<div class="border-b p-6">
-		<h1 class="mb-4 font-heading text-2xl font-bold">{t('common.search')}</h1>
-		<form
-			class="flex max-w-xl gap-2"
-			onsubmit={(e) => {
-				e.preventDefault();
-				runSearch();
-			}}
-		>
-			<SearchSuggest
-				bind:value={query}
-				placeholder={t('common.search_placeholder')}
-				onpick={() => (lastQuery = query)}
-			/>
-			<Button type="submit" class="gap-2" disabled={searching}>
-				<HugeiconsIcon icon={Search01Icon} class="h-4 w-4" />
-				{searching ? t('common.searching') : t('common.search')}
-			</Button>
-		</form>
-		{#if error}<div class="mt-2"><ErrorState message={error} onRetry={runSearch} /></div>{/if}
-	</div>
+	{#if error}
+		<div class="border-b p-6"><ErrorState message={error} onRetry={runSearch} /></div>
+	{/if}
 
 	<div class="min-h-0 flex-1 overflow-y-auto p-6">
 		{#if searching}

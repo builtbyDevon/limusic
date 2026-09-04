@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { HistoryIcon, Search01Icon } from '@hugeicons/core-free-icons';
-	import SearchSuggest from '$lib/components/SearchSuggest.svelte';
+	import { HistoryIcon } from '@hugeicons/core-free-icons';
 	import { auth, playback } from '$lib/player.svelte';
 	import { thumb } from '$lib/thumb';
 	import { t, type TranslationKey } from '$lib/i18n.svelte';
@@ -18,13 +17,6 @@
 					? 'home.good_afternoon'
 					: 'home.good_evening';
 	const daypart = $derived(t(daypartKey));
-
-	let searchQuery = $state('');
-
-	function goSearch() {
-		if (!searchQuery.trim()) return;
-		goto(`/search?${new URLSearchParams({ q: searchQuery }).toString()}`);
-	}
 
 	// Google's CDN doesn't serve every rewritten size, so a 404'd backdrop must degrade to nothing
 	// rendered, never a broken-image glyph. Re-arm whenever the track changes, mirroring MediaCard.
@@ -83,7 +75,7 @@
 					{daypart}{auth.account?.name ? `, ${auth.account.name.split(' ')[0]}` : ''}
 				</h1>
 			</div>
-			<div class="flex shrink-0 items-center gap-2">
+			<div class="flex shrink-0 items-center">
 				<!-- Listen Together moved out of here and lives on the titlebar alone: history is the thing
 				     you reach for from the home page. -->
 				<button
@@ -94,20 +86,6 @@
 				>
 					<HugeiconsIcon icon={HistoryIcon} class="h-5 w-5" />
 				</button>
-				<form class="relative w-full max-w-xs" onsubmit={(e) => { e.preventDefault(); goSearch(); }}>
-					<HugeiconsIcon
-						icon={Search01Icon}
-						class="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-					/>
-					<!-- The panel is wider than this field and hangs off its right edge: the rows carry
-					     artwork and two lines of text, which 20rem can't hold. -->
-					<SearchSuggest
-						bind:value={searchQuery}
-						placeholder={t('common.search')}
-						inputClass="rounded-full pl-9"
-						panelClass="right-0 w-[26rem]"
-					/>
-				</form>
 			</div>
 		</div>
 	</div>

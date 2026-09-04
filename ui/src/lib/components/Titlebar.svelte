@@ -5,7 +5,7 @@
 	// close — per the design, the scrobbler lives with the window controls but visually apart.
 	// Account (sign in/out) sits first in that cluster, in its own component.
 	import { onMount } from 'svelte';
-	import { afterNavigate } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {
@@ -20,8 +20,10 @@
 		Loading03Icon,
 		HotspotOfflineIcon,
 		UserGroup02Icon,
-		Link04Icon
+		Link04Icon,
+		Search01Icon
 	} from '@hugeicons/core-free-icons';
+	import SearchSuggest from './SearchSuggest.svelte';
 	import LastFmIcon from './LastFmIcon.svelte';
 	import DiscordIcon from './DiscordIcon.svelte';
 	import AccountMenu from './AccountMenu.svelte';
@@ -33,6 +35,13 @@
 	import { t } from '$lib/i18n.svelte';
 
 	const win = getCurrentWindow();
+	let searchQuery = $state('');
+
+	function goSearch() {
+		const query = searchQuery.trim();
+		if (!query) return;
+		goto(`/search?${new URLSearchParams({ q: query }).toString()}`);
+	}
 
 	// Back/forward. `depth` is how many history entries deep the session is, `deepest` how far it
 	// has ever been, so both buttons grey out instead of doing nothing. popstate carries a signed
@@ -44,6 +53,8 @@
 		if (nav.type === 'enter') depth = deepest = 0;
 		else if (nav.delta !== undefined) depth = Math.max(0, depth + nav.delta);
 		else deepest = depth += 1;
+		const query = nav.to?.url.searchParams.get('q');
+		if (query !== null && query !== undefined) searchQuery = query;
 	});
 
 	// Last.fm connection state. `connecting` is UI-local: set on click, cleared by the
@@ -138,13 +149,32 @@
      under it instead of the other way round. -->
 <header
 	data-tauri-drag-region
-	class="relative {ui.theaterOpen ? 'z-0' : 'z-50'} flex h-9 shrink-0 select-none items-center justify-between border-b border-border/60 bg-background"
+	class="relative {ui.theaterOpen ? 'z-0' : 'z-50'} flex h-11 shrink-0 select-none items-center justify-between border-b border-border/60 bg-background"
 >
-	<span
-		class="pointer-events-none absolute inset-x-0 text-center text-xs font-medium tracking-wide text-muted-foreground"
+	<!-- At narrower window sizes the right-side controls cross the true midpoint, so center the
+	     search within the free space. Once there is room, it sits at the exact window midpoint. -->
+	<div
+		class="absolute left-28 right-[30rem] flex justify-center min-[1150px]:left-1/2 min-[1150px]:right-auto min-[1150px]:w-80 min-[1150px]:-translate-x-1/2"
 	>
-		Limusic
-	</span>
+		<form
+			class="relative w-full max-w-sm"
+			onsubmit={(e) => {
+				e.preventDefault();
+				goSearch();
+			}}
+		>
+			<HugeiconsIcon
+				icon={Search01Icon}
+				class="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+			/>
+			<SearchSuggest
+				bind:value={searchQuery}
+				placeholder={t('common.search_placeholder')}
+				inputClass="h-8 select-text rounded-full border-border/70 bg-muted/60 pl-9 text-xs shadow-sm"
+				panelClass="left-1/2 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2"
+			/>
+		</form>
+	</div>
 
 	<div class="flex h-full items-center">
 		<!-- pointer-events-none: the logo is decoration; clicks on it should drag the window. -->
