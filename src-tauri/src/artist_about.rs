@@ -241,8 +241,13 @@ async fn fetch(name: &str, channel_id: &str) -> Result<ArtistAbout, String> {
     if let Some(title) = wikipedia_title_value {
         if let Ok(summary) = wikipedia_summary(&title).await {
             about.description = summary["extract"].as_str().map(str::to_owned);
-            if let Some(source) = summary.pointer("/originalimage/source").and_then(Value::as_str) {
-                about.photos.insert(0, source.to_owned());
+            // Wikipedia's `originalimage` can be a multi-thousand-pixel source that makes the
+            // webview decode tens of megabytes for one card. Wikidata P18 images above are
+            // already width-bounded; only use Wikipedia's bounded thumbnail as a fallback.
+            if about.photos.is_empty() {
+                if let Some(source) = summary.pointer("/thumbnail/source").and_then(Value::as_str) {
+                    about.photos.push(source.to_owned());
+                }
             }
             if about.wikipedia_url.is_none() {
                 about.wikipedia_url = summary

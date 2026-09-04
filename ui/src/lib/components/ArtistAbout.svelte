@@ -35,7 +35,6 @@
 	let failedPhotos = $state<string[]>([]);
 	let lightbox = $state<string | null>(null);
 
-	const key = $derived(`artist-about:${artistId}`);
 	const description = $derived(youtubeDescription || about?.description);
 	const photos = $derived(
 		[...new Set([youtubePhoto, ...(about?.photos ?? [])].filter((p): p is string => !!p))]
@@ -59,7 +58,7 @@
 	);
 
 	async function load(cid: string, artistName: string) {
-		const hit = getCached<ArtistAbout>(key);
+		const hit = getCached<ArtistAbout>(`artist-about:${cid}`);
 		if (hit) {
 			about = hit;
 			return;
@@ -80,10 +79,11 @@
 	$effect(() => {
 		const cid = artistId;
 		const artistName = name?.trim();
-		about = getCached<ArtistAbout>(`artist-about:${cid}`) ?? null;
+		const cached = getCached<ArtistAbout>(`artist-about:${cid}`);
+		about = cached;
 		failedPhotos = [];
 		lightbox = null;
-		if (!root || !artistName || about) return;
+		if (!root || !artistName || cached) return;
 		const io = new IntersectionObserver(
 			(entries) => {
 				if (!entries.some((entry) => entry.isIntersecting)) return;
@@ -118,36 +118,38 @@
 		<h2 class="mb-3 font-heading text-xl font-bold">About {name}</h2>
 		<div class="overflow-hidden rounded-2xl border bg-card/50">
 			{#if photos.length}
-				<div class="grid h-64 gap-1 bg-muted sm:h-80 {photos.length > 1 ? 'grid-cols-3' : ''}">
+				<div class="grid h-64 min-h-0 overflow-hidden gap-1 bg-muted sm:h-80 {photos.length > 1 ? 'grid-cols-3' : ''}">
 					<button
 						type="button"
-						class="group relative overflow-hidden text-left {photos.length > 1 ? 'col-span-2' : ''}"
+						class="group relative min-h-0 overflow-hidden text-left {photos.length > 1 ? 'col-span-2' : ''}"
 						onclick={() => (lightbox = photos[0])}
 						aria-label={`Open photo of ${name ?? 'artist'}`}
 					>
 						<img
 							src={photos[0]}
 							alt=""
-							class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+							class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
 							loading="lazy"
+							decoding="async"
 							onerror={() => photoFailed(photos[0])}
 						/>
 						<div class="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent"></div>
 					</button>
 					{#if photos.length > 1}
-						<div class="grid min-w-0 grid-rows-2 gap-1">
+						<div class="grid min-h-0 min-w-0 grid-rows-2 gap-1 overflow-hidden">
 							{#each photos.slice(1, 3) as photo (photo)}
 								<button
 									type="button"
-									class="group min-h-0 overflow-hidden"
+									class="group relative min-h-0 overflow-hidden"
 									onclick={() => (lightbox = photo)}
 									aria-label={`Open photo of ${name ?? 'artist'}`}
 								>
 									<img
 										src={photo}
 										alt=""
-										class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+										class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
 										loading="lazy"
+										decoding="async"
 										onerror={() => photoFailed(photo)}
 									/>
 								</button>
@@ -227,6 +229,7 @@
 			src={lightbox}
 			alt={name ?? ''}
 			class="relative z-10 max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+			decoding="async"
 			onerror={() => photoFailed(lightbox!)}
 		/>
 	</div>
