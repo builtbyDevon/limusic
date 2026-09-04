@@ -104,6 +104,13 @@ pub struct AppState {
     /// `last_queue_fingerprint`, for the persistence side: an advance rewrites 40 bytes rather
     /// than the whole blob.
     last_persisted_fingerprint: AtomicU64,
+    /// One authentication transition at a time: [`Self::sign_in`], [`Self::switch_account`],
+    /// [`Self::sign_out`]. Each reads the cookie and identity, awaits YouTube, then writes both to
+    /// the transport and the database, so two of them overlapping lets the loser land last and
+    /// win: a failed heal restoring its stale snapshot over a fresh login, or a heal completing
+    /// after the user signed out and putting them back in. Async because it is held across those
+    /// awaits, which a std `Mutex` cannot be.
+    auth: tokio::sync::Mutex<()>,
 }
 
 /// Repeat mode for the queue. Serialized lowercase for the UI + `queue_json`.
@@ -378,6 +385,7 @@ impl AppState {
             discord,
             lastfm,
             queue: Mutex::new(QueueState::default()),
+            auth: tokio::sync::Mutex::default(),
             history_pinged: AtomicBool::new(false),
             is_playing: AtomicBool::new(false),
             generation: AtomicU64::new(0),
@@ -440,6 +448,7 @@ impl AppState {
     /// Google's current default; a new multi-channel login pauses before finalization and asks the
     /// UI to choose.
     pub async fn sign_in(&self, cookie: String) -> Result<SignInOutcome, String> {
+        let _turn = self.auth.lock().await;
         let cookie = cookie.trim().to_owned();
         if innertube::cookie_sapisid(&cookie).is_none() {
             return Err("Sign-in didn't complete — try signing in again.".into());
@@ -640,6 +649,7 @@ impl AppState {
     /// account_menu must succeed under a one-off context for that exact identity before the shared
     /// transport, persistence, or UI is updated.
     pub async fn switch_account(&self, selection_key: &str) -> Result<serde_json::Value, String> {
+        let _turn = self.auth.lock().await;
         if !self.it.is_logged_in() {
             return Err("Sign in before switching channels.".into());
         }
@@ -734,6 +744,7 @@ impl AppState {
     }
 
     pub async fn sign_out(&self) {
+        let _turn = self.auth.lock().await;
         self.it.set_cookie(None);
         self.it.set_data_sync_id(None);
         self.db.delete_setting("session_cookie");
