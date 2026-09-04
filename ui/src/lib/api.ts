@@ -299,6 +299,18 @@ export interface ArtistPage {
 	sections: ArtistCarousel[];
 }
 
+/** Optional public-profile enrichment for the fork's artist About card. YouTube remains the
+ * source of truth for the page; every field here may be absent when open music databases do not
+ * have a confident match. */
+export interface ArtistAbout {
+	description?: string;
+	photos: string[];
+	instagramUrl?: string;
+	xUrl?: string;
+	websiteUrl?: string;
+	wikipediaUrl?: string;
+}
+
 // --- commands (context/11) -----------------------------------------------------------------
 export const search = (query: string) => invoke<SongItem[]>('search', { query });
 /** Unfiltered search → categorized sections. */
@@ -501,6 +513,8 @@ export const startRadio = (kind: 'song' | 'artist' | 'album' | 'playlist', id: s
 	invoke<void>('start_radio', { kind, id, name });
 export const getAlbum = (id: string) => invoke<AlbumPage>('get_album', { id });
 export const getArtist = (id: string) => invoke<ArtistPage>('get_artist', { id });
+export const getArtistAbout = (name: string, channelId: string) =>
+	invoke<ArtistAbout>('get_artist_about', { name, channelId });
 export const getBrowseGrid = (id: string, params?: string) =>
 	invoke<BrowseItem[]>('get_browse_grid', { id, params });
 

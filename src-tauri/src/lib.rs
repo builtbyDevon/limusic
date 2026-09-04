@@ -1,5 +1,6 @@
 //! Limusic Tauri app. Wires transport + player + db + orchestrator behind the command boundary.
 
+mod artist_about;
 mod cipher;
 mod commands;
 mod db;
@@ -584,6 +585,7 @@ pub fn run() {
             commands::remove_local_folder,
             commands::allow_font_file,
             commands::get_artist,
+            artist_about::get_artist_about,
             commands::get_browse_grid,
             commands::play_playlist,
             commands::start_radio,

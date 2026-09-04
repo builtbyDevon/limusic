@@ -18,6 +18,7 @@
 	import TrackRow from '$lib/components/TrackRow.svelte';
 	import TrackRowSkeleton from '$lib/components/TrackRowSkeleton.svelte';
 	import ErrorState from '$lib/components/ErrorState.svelte';
+	import ArtistAbout from '$lib/components/ArtistAbout.svelte';
 	import Shelf from '$lib/components/Shelf.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as api from '$lib/api';
@@ -42,7 +43,6 @@
 	let artist = $state<ArtistPage | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let expanded = $state(false);
 	let subscribed = $state(false);
 	let subBusy = $state(false);
 	let shuffleBusy = $state(false);
@@ -64,7 +64,6 @@
 			artist = null;
 		}
 		error = null;
-		expanded = false;
 		try {
 			const fresh = await api.getArtist(cid);
 			if (cid !== id) return; // superseded by navigation — drop the stale response
@@ -208,17 +207,6 @@
 					{#if artist.monthlyListeners}{artist.monthlyListeners}{/if}
 				</p>
 			{/if}
-			{#if artist.description}
-				<p class="mt-3 max-w-2xl text-sm text-foreground/80 {expanded ? '' : 'line-clamp-2'}">
-					{artist.description}
-				</p>
-				<button
-					class="mt-1 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
-					onclick={() => (expanded = !expanded)}
-				>
-					{expanded ? t('common.less') : t('common.more')}
-				</button>
-			{/if}
 			<div class="mt-5 flex items-center gap-3">
 				<button
 					class="flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
@@ -322,6 +310,15 @@
 				onMore={section.moreBrowseId ? () => showMore(section) : undefined}
 			/>
 		{/each}
+
+		<ArtistAbout
+			artistId={id}
+			name={artist.name}
+			youtubeDescription={artist.description}
+			youtubePhoto={artist.thumbnail}
+			subscribers={artist.subscribers}
+			monthlyListeners={artist.monthlyListeners}
+		/>
 	</div>
 {/if}
 
