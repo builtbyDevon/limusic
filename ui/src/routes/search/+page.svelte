@@ -7,6 +7,7 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { rememberSearch } from '$lib/recent-searches';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -40,6 +41,7 @@
 	async function runSearch() {
 		if (!query.trim()) return;
 		const q = query;
+		rememberSearch(q);
 		latest = q;
 		lastQuery = q;
 		const key = `search:${q}`;

@@ -7,6 +7,8 @@
 	// through to that form's onsubmit, which is where each caller decides what a full search means
 	// (run it in place, or navigate to /search).
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { tick } from 'svelte';
+	import { recentSearches, rememberSearch } from '$lib/recent-searches';
 	import {
 		Search01Icon,
 		MusicNote01Icon,
@@ -40,6 +42,22 @@
 	} = $props();
 
 	let open = $state(false);
+	let recent = $state<string[]>([]);
+	const showingRecent = $derived(!value.trim());
+
+	function showRecent() {
+		if (value.trim()) return;
+		recent = recentSearches();
+		active = -1;
+		open = true;
+	}
+
+	async function chooseRecent(query: string, form: HTMLFormElement | null) {
+		value = query;
+		close();
+		await tick();
+		form?.requestSubmit();
+	}
 	let items = $state<BrowseItem[]>([]);
 	let loading = $state(false);
 	let active = $state(-1); // keyboard-highlighted row, -1 = none (Enter submits the form)
@@ -77,7 +95,9 @@
 		clearTimeout(debounce);
 		const q = e.currentTarget.value.trim();
 		if (q.length < 2) {
+			loadedFor = '';
 			close();
+			if (!q) showRecent();
 			return;
 		}
 		open = true;
@@ -90,9 +110,7 @@
 		debounce = setTimeout(() => load(q), 500);
 	}
 
-	// Deliberately no reopen-on-focus: rows preventDefault on mousedown, so the input keeps focus
-	// after a row is taken, and the focus the window restores on regaining it would repaint the panel
-	// over whatever is on screen by then, the now-playing view included (#124). Typing reopens it.
+	// Only an empty field reopens on focus; populated previews still require typing.
 	function close() {
 		clearTimeout(debounce);
 		open = false;
@@ -106,6 +124,7 @@
 	}
 
 	function choose(item: BrowseItem) {
+		rememberSearch(value);
 		close();
 		openItem(item); // a song plays, everything else opens its page
 		onpick?.();
@@ -116,17 +135,22 @@
 			e.preventDefault();
 			close();
 		} else if (e.key === 'Enter') {
+			if (open && showingRecent && active >= 0 && recent[active]) {
+				e.preventDefault();
+				chooseRecent(recent[active], (e.currentTarget as HTMLInputElement).form);
+				return;
+			}
 			// Only a highlighted row is ours; a bare Enter is the caller's form submit.
-			if (active >= 0 && items[active]) {
+			if (!showingRecent && active >= 0 && items[active]) {
 				e.preventDefault();
 				choose(items[active]);
 			} else {
 				close();
 			}
-		} else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length) {
+		} else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (showingRecent ? recent.length : items.length)) {
 			e.preventDefault();
 			open = true;
-			const n = items.length;
+			const n = showingRecent ? recent.length : items.length;
 			active = e.key === 'ArrowDown' ? (active + 1) % n : (active <= 0 ? n : active) - 1;
 		}
 	}
@@ -152,6 +176,8 @@
 		aria-expanded={open}
 		aria-controls="search-suggest"
 		oninput={onType}
+		onfocus={showRecent}
+		onclick={showRecent}
 		onkeydown={onKeydown}
 	/>
 	{#if value}
@@ -181,7 +207,25 @@
 			aria-label={t('a11y.search_preview')}
 			class="absolute top-full z-50 mt-2 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl animate-in fade-in-0 zoom-in-95 duration-150 {panelClass}"
 		>
-			{#if loading && !items.length}
+			{#if showingRecent}
+				<div class="px-4 pb-2 pt-3 text-xs font-semibold text-muted-foreground">Recent searches</div>
+				{#each recent as query, i (query)}
+					<button
+						type="button"
+						role="option"
+						aria-selected={i === active}
+						class="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm {i === active ? 'bg-muted' : 'hover:bg-muted/70'}"
+						onmousedown={(e) => e.preventDefault()}
+						onmouseenter={() => (active = i)}
+						onclick={(e) => chooseRecent(query, e.currentTarget.form)}
+					>
+						<HugeiconsIcon icon={Search01Icon} class="h-4 w-4 shrink-0 text-muted-foreground" />
+						<span class="truncate">{query}</span>
+					</button>
+				{:else}
+					<div class="px-4 pb-4 text-sm text-muted-foreground">Your searches will appear here.</div>
+				{/each}
+			{:else if loading && !items.length}
 				{#each Array(4) as _, i (i)}
 					<div class="flex items-center gap-3 px-3 py-2">
 						<Skeleton class="h-10 w-10 shrink-0 rounded-md" />
@@ -262,6 +306,7 @@
 			<!-- Submits the enclosing form, which is where each caller decides what "all results" does.
 			     Explicitly, not type="submit": closing the panel unmounts this button mid-click, and a
 			     submit button removed from the DOM before the click completes never submits (#125). -->
+			{#if !showingRecent}
 			<button
 				type="button"
 				class="flex w-full cursor-pointer items-center gap-2 border-t bg-muted/30 px-3 py-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -275,6 +320,7 @@
 				<HugeiconsIcon icon={Search01Icon} class="h-3.5 w-3.5" />
 				All results for “{value.trim()}”
 			</button>
+			{/if}
 		</div>
 	{/if}
 	<!-- Outside the panel, and with no visible trigger: a row is too small for a hover-only ⋯, and
