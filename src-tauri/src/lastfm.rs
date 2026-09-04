@@ -41,6 +41,10 @@ const API_SECRET: &str = match option_env!("LIMUSIC_LASTFM_API_SECRET") {
     None => "",
 };
 
+fn credentials_configured() -> bool {
+    !API_KEY.is_empty() && !API_SECRET.is_empty()
+}
+
 const API_ROOT: &str = "https://ws.audioscrobbler.com/2.0/";
 const AUTH_URL: &str = "https://www.last.fm/api/auth/";
 
@@ -111,7 +115,10 @@ impl LastfmHandle {
 pub fn spawn(session_key: Option<String>) -> LastfmHandle {
     let (tx, mut rx) = unbounded_channel::<Msg>();
     tauri::async_runtime::spawn(async move {
-        let mut s = Scrobbler::new(session_key);
+        // A persisted session is only meaningful for the API application that created it. A
+        // source build without that application's key/secret must stay parked instead of making
+        // doomed requests while the title bar misleadingly claims scrobbling is active.
+        let mut s = Scrobbler::new(credentials_configured().then_some(session_key).flatten());
         while let Some(msg) = rx.recv().await {
             s.apply(msg).await;
         }
@@ -292,7 +299,7 @@ fn emit_state(
 /// and poll `auth.getSession` in the background until they approve (or the poll times out /
 /// is superseded). Resolution arrives via the `lastfm-state` event, not this command.
 pub async fn connect(state: Arc<AppState>) -> Result<(), String> {
-    if API_KEY.is_empty() || API_SECRET.is_empty() {
+    if !credentials_configured() {
         return Err("Last.fm isn't configured in this build — paste an API key into lastfm.rs \
                     (see https://www.last.fm/api/account/create)."
             .into());
@@ -358,7 +365,10 @@ pub fn disconnect(state: &AppState) {
 pub fn status(state: &AppState) -> serde_json::Value {
     let key = state.db.get_setting("lastfm_session_key").filter(|s| !s.is_empty());
     let username = state.db.get_setting("lastfm_username").filter(|s| !s.is_empty());
-    serde_json::json!({ "connected": key.is_some(), "username": username })
+    serde_json::json!({
+        "connected": credentials_configured() && key.is_some(),
+        "username": credentials_configured().then_some(username).flatten()
+    })
 }
 
 /// Open a URL in the user's default browser. No opener plugin in the app; three lines cover the

@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import {
-		PreviousIcon,
-		NextIcon,
 		PlayIcon,
-		PauseIcon,
 		ShuffleIcon,
 		RepeatIcon,
 		RepeatOne01Icon,
@@ -39,6 +36,7 @@
 	import { thumb } from '$lib/thumb';
 	import ArtistLine from './ArtistLine.svelte';
 	import Marquee from './Marquee.svelte';
+	import SolidTransportIcon from './SolidTransportIcon.svelte';
 	import TrackMenu from './TrackMenu.svelte';
 	import { t } from '$lib/i18n.svelte';
 
@@ -290,8 +288,8 @@
 
 	<!-- Transport -->
 	<div class="flex flex-[1.5] items-center justify-center">
-		<div class="grid w-full max-w-xs grid-cols-[1fr_auto_1fr] items-center text-xs text-muted-foreground">
-			<span class="justify-self-start tabular-nums">{fmt(shownPosition)}</span>
+		<div class="flex w-full items-center justify-center gap-1 text-xs text-muted-foreground">
+			<span class="w-10 text-right tabular-nums">{fmt(shownPosition)}</span>
 			<div class="flex items-center gap-1 text-foreground">
 				<Button
 					variant="ghost"
@@ -306,7 +304,7 @@
 					/>
 				</Button>
 				<Button variant="ghost" size="icon-sm" onclick={() => api.prevTrack()} aria-label={t('player.previous')}>
-					<HugeiconsIcon icon={PreviousIcon} class="h-5 w-5" />
+					<SolidTransportIcon kind="previous" class="h-4 w-4" />
 				</Button>
 				<Button
 					variant="default"
@@ -315,17 +313,14 @@
 					onclick={() => api.togglePause()}
 					aria-label={playback.paused ? t('player.play') : t('player.pause')}
 				>
-					<!-- HugeiconsIcon only re-renders `altIcon`/`showAlt`, not `icon` (frozen at mount) —
-					     so toggle via showAlt, not a ternary on `icon`. -->
-					<HugeiconsIcon
-						icon={PauseIcon}
-						altIcon={PlayIcon}
-						showAlt={playback.paused}
-						class="h-5 w-5"
-					/>
+					{#if playback.paused}
+						<HugeiconsIcon icon={PlayIcon} class="h-5 w-5" />
+					{:else}
+						<SolidTransportIcon kind="pause" class="h-5 w-5" />
+					{/if}
 				</Button>
 				<Button variant="ghost" size="icon-sm" onclick={() => api.nextTrack()} aria-label={t('player.next')}>
-					<HugeiconsIcon icon={NextIcon} class="h-5 w-5" />
+					<SolidTransportIcon kind="next" class="h-4 w-4" />
 				</Button>
 				<Button
 					variant="ghost"
@@ -350,7 +345,7 @@
 					/>
 				</Button>
 			</div>
-			<span class="justify-self-end tabular-nums">{fmt(playback.duration)}</span>
+			<span class="w-10 text-left tabular-nums">{fmt(playback.duration)}</span>
 		</div>
 	</div>
 

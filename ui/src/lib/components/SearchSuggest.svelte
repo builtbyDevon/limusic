@@ -7,7 +7,12 @@
 	// through to that form's onsubmit, which is where each caller decides what a full search means
 	// (run it in place, or navigate to /search).
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { Search01Icon, MusicNote01Icon, UserIcon } from '@hugeicons/core-free-icons';
+	import {
+		Search01Icon,
+		MusicNote01Icon,
+		UserIcon,
+		Cancel01Icon
+	} from '@hugeicons/core-free-icons';
 	import { Input } from '$lib/components/ui/input';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import ExplicitIcon from './ExplicitIcon.svelte';
@@ -95,6 +100,11 @@
 		active = -1;
 	}
 
+	function clear() {
+		value = '';
+		close();
+	}
+
 	function choose(item: BrowseItem) {
 		close();
 		openItem(item); // a song plays, everything else opens its page
@@ -144,6 +154,16 @@
 		oninput={onType}
 		onkeydown={onKeydown}
 	/>
+	{#if value}
+		<button
+			type="button"
+			class="absolute right-2.5 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+			onclick={clear}
+			aria-label={t('a11y.clear_search')}
+		>
+			<HugeiconsIcon icon={Cancel01Icon} strokeWidth={2.5} class="h-3.5 w-3.5" />
+		</button>
+	{/if}
 	<!-- Advertises the palette, which searches the same thing from anywhere in the app
 	     (shortcuts.ts). Out of the way once there is a query to read, and never a click target:
 	     the field behind it is the target. -->
@@ -186,8 +206,8 @@
 						aria-selected={i === active}
 						class="flex w-full cursor-pointer items-center gap-3 px-3 text-left transition-colors {i ===
 						active
-							? 'bg-accent/60'
-							: 'hover:bg-accent/40'} {hero ? 'border-b py-2.5' : 'py-1.5'}"
+							? 'bg-muted'
+							: 'hover:bg-muted/70'} {hero ? 'border-b py-2.5' : 'py-1.5'}"
 						onmousedown={(e) => e.preventDefault()}
 						onmouseenter={() => {
 							active = i;
