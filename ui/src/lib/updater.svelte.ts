@@ -10,6 +10,10 @@ import { canSelfUpdate, getSettings, openExternal, releaseNotes } from './api';
 import { getVersion } from '@tauri-apps/api/app';
 
 const RELEASES_URL = 'https://github.com/SimoHypers/limusic/releases/latest';
+// A signed upstream package contains only upstream code, so installing it over the custom build
+// removes the Eclipse resolver and branding. Lossless builds still take upstream updates by
+// merging them into the fork and rebuilding; they must never self-install the stock bundle.
+const LOSSLESS_BUILD = import.meta.env.VITE_LIMUSIC_LOSSLESS === 'true';
 
 /** How often the quiet check repeats while the app stays open. */
 export const QUIET_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -37,6 +41,7 @@ function isNewer(a: string, b: string): boolean {
 }
 
 async function look(): Promise<boolean> {
+	if (LOSSLESS_BUILD) return false;
 	let u: Update | null;
 	try {
 		u = await check();

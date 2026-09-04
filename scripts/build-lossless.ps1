@@ -2,9 +2,16 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 Push-Location (Join-Path $repoRoot "ui")
+$previousLosslessBuild = $env:VITE_LIMUSIC_LOSSLESS
 try {
+	$env:VITE_LIMUSIC_LOSSLESS = "true"
     pnpm build
 } finally {
+	if ($null -eq $previousLosslessBuild) {
+		Remove-Item Env:\VITE_LIMUSIC_LOSSLESS -ErrorAction SilentlyContinue
+	} else {
+		$env:VITE_LIMUSIC_LOSSLESS = $previousLosslessBuild
+	}
     Pop-Location
 }
 
