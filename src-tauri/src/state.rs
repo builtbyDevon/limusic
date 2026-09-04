@@ -800,6 +800,13 @@ impl AppState {
             video_id: item.video_id.clone(),
             title: item.title.clone(),
             artist: item.artists.clone(),
+            artist_aliases: item
+                .artist_runs
+                .iter()
+                .filter(|run| run.id.is_some())
+                .map(|run| run.text.trim().to_owned())
+                .filter(|artist| !artist.is_empty())
+                .collect(),
             album: item.album.clone(),
             duration_ms: match parse_duration_ms(item.duration.as_deref()) {
                 0 => None,

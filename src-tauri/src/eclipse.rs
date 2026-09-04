@@ -53,6 +53,9 @@ pub struct TrackQuery {
     pub video_id: String,
     pub title: String,
     pub artist: String,
+    /// Individual linked artist names from YouTube's structured credit runs. A catalog result may
+    /// name only the primary act while YouTube prints every member/contributor in one long line.
+    pub artist_aliases: Vec<String>,
     pub album: Option<String>,
     pub duration_ms: Option<i64>,
 }
@@ -748,8 +751,17 @@ fn version_tokens(value: &str) -> HashSet<String> {
 fn score_candidate(expected: &TrackQuery, actual: &Candidate) -> Option<f64> {
     let title_forward = coverage(&expected.title, &actual.title, true);
     let title_reverse = coverage(&actual.title, &expected.title, true);
-    let artist_forward = coverage(&expected.artist, &actual.artist, false);
-    let artist_reverse = coverage(&actual.artist, &expected.artist, false);
+    // Keep the full credit line, but also compare each linked artist run. YouTube commonly renders
+    // a group plus its members ("100 gecs, Laura Les & Dylan Brady") while the lossless catalog
+    // correctly credits only the group. Requiring half of the combined words rejected that exact
+    // match even though title, duration, album, and ISRC all agreed.
+    let (artist_forward, artist_reverse) = std::iter::once(&expected.artist)
+        .chain(expected.artist_aliases.iter())
+        .map(|artist| {
+            (coverage(artist, &actual.artist, false), coverage(&actual.artist, artist, false))
+        })
+        .max_by(|left, right| left.0.max(left.1).total_cmp(&right.0.max(right.1)))
+        .unwrap_or_default();
     if title_forward < 0.8 || title_reverse < 0.8 || artist_forward < 0.5 {
         return None;
     }
@@ -817,6 +829,7 @@ mod tests {
             video_id: "video".into(),
             title: title.into(),
             artist: artist.into(),
+            artist_aliases: Vec::new(),
             album: None,
             duration_ms: Some(duration_ms),
         }
@@ -848,6 +861,17 @@ mod tests {
         let expected = track("Song", "Artist", 180_000);
         let actual = candidate("Song (Live)", "Artist", 180_000);
         assert!(score_candidate(&expected, &actual).is_none());
+    }
+
+    #[test]
+    fn matching_accepts_primary_artist_from_structured_credits() {
+        let mut expected = track("ringtone", "100 gecs, Laura Les & Dylan Brady", 144_000);
+        expected.artist_aliases = vec!["100 gecs".into(), "Laura Les".into(), "Dylan Brady".into()];
+        let actual = candidate("ringtone", "100 gecs", 144_000);
+        assert!(score_candidate(&expected, &actual).is_some());
+
+        let unrelated = candidate("ringtone", "Ringtone Tribute Band", 144_000);
+        assert!(score_candidate(&expected, &unrelated).is_none());
     }
 
     #[test]
