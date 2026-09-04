@@ -149,15 +149,15 @@
      under it instead of the other way round. -->
 <header
 	data-tauri-drag-region
-	class="relative {ui.theaterOpen ? 'z-0' : 'z-50'} flex h-11 shrink-0 select-none items-center justify-between border-b border-border/60 bg-background"
+	class="relative {ui.theaterOpen ? 'z-0' : 'z-50'} flex h-14 shrink-0 select-none items-center justify-between border-b border-border/60 bg-background"
 >
 	<!-- At narrower window sizes the right-side controls cross the true midpoint, so center the
 	     search within the free space. Once there is room, it sits at the exact window midpoint. -->
 	<div
-		class="absolute left-28 right-[30rem] flex justify-center min-[1150px]:left-1/2 min-[1150px]:right-auto min-[1150px]:w-80 min-[1150px]:-translate-x-1/2"
+		class="absolute left-28 right-[30rem] flex justify-center min-[1150px]:left-1/2 min-[1150px]:right-auto min-[1150px]:w-[30rem] min-[1150px]:-translate-x-1/2"
 	>
 		<form
-			class="relative w-full max-w-sm"
+			class="relative w-full max-w-lg"
 			onsubmit={(e) => {
 				e.preventDefault();
 				goSearch();
@@ -170,7 +170,7 @@
 			<SearchSuggest
 				bind:value={searchQuery}
 				placeholder={t('common.search_placeholder')}
-				inputClass="h-8 select-text rounded-full border-border/70 bg-muted/60 pl-9 text-xs shadow-sm"
+				inputClass="h-10 select-text rounded-full border-border/70 bg-muted/60 pl-10 pr-10 text-sm shadow-sm"
 				panelClass="left-1/2 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2"
 			/>
 		</form>
