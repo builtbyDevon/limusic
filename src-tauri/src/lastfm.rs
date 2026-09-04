@@ -300,8 +300,8 @@ fn emit_state(
 /// is superseded). Resolution arrives via the `lastfm-state` event, not this command.
 pub async fn connect(state: Arc<AppState>) -> Result<(), String> {
     if !credentials_configured() {
-        return Err("Last.fm isn't configured in this build — paste an API key into lastfm.rs \
-                    (see https://www.last.fm/api/account/create)."
+        return Err("Last.fm isn't configured in this build — add an API key and shared secret to \
+                    src-tauri/lastfm.keys, then rebuild (see https://www.last.fm/api/account/create)."
             .into());
     }
     let gen = state.lastfm.bump_gen();
