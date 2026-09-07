@@ -106,6 +106,8 @@ pub enum EclipseError {
 
 pub struct EclipseResolver {
     client: reqwest::Client,
+    authenticated_client: reqwest::Client,
+    account_token: Mutex<Option<(Option<String>, Instant)>>,
     sources: Mutex<Option<(Vec<Source>, Instant)>>,
     matches: Mutex<HashMap<String, CachedMatch>>,
     failed_streams: Mutex<HashMap<String, Instant>>,
@@ -119,6 +121,12 @@ impl EclipseResolver {
             .expect("build Eclipse addon HTTP client");
         Self {
             client,
+            authenticated_client: reqwest::Client::builder()
+                .timeout(REQUEST_TIMEOUT)
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("build authenticated Eclipse client"),
+            account_token: Mutex::new(None),
             sources: Mutex::new(None),
             matches: Mutex::new(HashMap::new()),
             failed_streams: Mutex::new(HashMap::new()),
@@ -382,12 +390,7 @@ impl EclipseResolver {
         query: &[(&str, String)],
     ) -> Result<Value, EclipseError> {
         for attempt in 0..2 {
-            let mut url = reqwest::Url::parse(&format!(
-                "{}/{}",
-                source.base_url.trim_end_matches('/'),
-                path.trim_start_matches('/')
-            ))
-            .map_err(|_| EclipseError::InvalidData)?;
+            let mut url = addon_request_url(source, path)?;
             {
                 let mut pairs = url.query_pairs_mut();
                 if !source.cloud {
@@ -399,13 +402,26 @@ impl EclipseResolver {
                     pairs.append_pair(key.as_ref(), value);
                 }
             }
-            let result = self
-                .client
-                .get(url)
-                .header(reqwest::header::ACCEPT, "application/json")
-                .send()
-                .await;
+            let authenticated = is_account_endpoint(&url);
+            let client = if authenticated { &self.authenticated_client } else { &self.client };
+            let mut request = client.get(url).header(reqwest::header::ACCEPT, "application/json");
+            if authenticated {
+                let mut cached = self.account_token.lock().await;
+                if cached.as_ref().map_or(true, |(_, expires)| *expires <= Instant::now()) {
+                    let token = tokio::task::spawn_blocking(load_account_token).await.unwrap_or(None);
+                    *cached = Some((token, Instant::now() + SOURCE_TTL));
+                }
+                if let Some((Some(token), _)) = cached.as_ref() {
+                    request = request.bearer_auth(token);
+                }
+                #[cfg(target_os = "windows")]
+                { request = request.header("X-Client-Platform", "windows"); }
+            }
+            let result = request.send().await;
             if let Ok(response) = result {
+                if authenticated && matches!(response.status().as_u16(), 401 | 403) {
+                    *self.account_token.lock().await = None;
+                }
                 if response.status().is_success() {
                     if let Ok(text) = response.text().await {
                         if let Ok(value) = serde_json::from_str(&text) {
@@ -421,6 +437,48 @@ impl EclipseResolver {
         Err(EclipseError::Request)
     }
 }
+
+fn addon_request_url(source: &Source, route: &str) -> Result<reqwest::Url, EclipseError> {
+    let base = reqwest::Url::parse(&source.base_url).map_err(|_| EclipseError::InvalidData)?;
+    let route = route.trim_start_matches('/');
+    let route = if source.cloud && base.path().trim_end_matches('/').ends_with("/music") {
+        route.strip_prefix("music/").unwrap_or(route)
+    } else { route };
+    reqwest::Url::parse(&format!("{}/{}", source.base_url.trim_end_matches('/'), route))
+        .map_err(|_| EclipseError::InvalidData)
+}
+
+fn is_account_endpoint(url: &reqwest::Url) -> bool {
+    url.scheme() == "https" && url.host_str() == Some("api.eclipsemusic.app")
+        && url.port().is_none() && url.username().is_empty() && url.password().is_none()
+        && url.path().starts_with("/addon/")
+}
+
+#[cfg(target_os = "windows")]
+fn load_account_token() -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    // Eclipse's existing account login is DPAPI-encrypted for this Windows user.
+    // Capture it only in Rust memory; never expose subprocess output in errors or the webview.
+    let script = r#"
+        $ErrorActionPreference = 'Stop'
+        Add-Type -AssemblyName System.Security
+        $sha = [Security.Cryptography.SHA256]::Create()
+        $hash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes('auth_token'))).Replace('-', '').Substring(0,16)
+        $file = Join-Path $env:LOCALAPPDATA ('EclipseMusic\secure\' + $hash + '.dat')
+        $bytes = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($file), $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+        [Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))
+    "#;
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .creation_flags(0x08000000)
+        .output().ok()?;
+    if !output.status.success() { return None; }
+    let token = String::from_utf8(output.stdout).ok()?.trim().to_owned();
+    if token.is_empty() { None } else { Some(token) }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn load_account_token() -> Option<String> { None }
 
 /// A cheap settings-page probe that never waits on the resolver's async caches.
 /// Discovery is local-file-only on supported platforms, so keeping this synchronous also means a
@@ -823,6 +881,42 @@ fn delivered_quality(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_routes_support_legacy_and_music_bases() {
+        for (base, route, expected) in [
+            ("https://example.invalid/addon/token/music/", "music/search", "/addon/token/music/search"),
+            ("https://example.invalid/addon/token/music", "music/stream", "/addon/token/music/stream"),
+            ("https://example.invalid/addon/token/music", "tidal/resolve-isrc", "/addon/token/music/tidal/resolve-isrc"),
+            ("https://example.invalid/addon/token", "music/search", "/addon/token/music/search"),
+        ] {
+            let source = Source { base_url: base.into(), provider: None, cloud: true, settings: vec![] };
+            assert_eq!(addon_request_url(&source, route).unwrap().path(), expected);
+        }
+    }
+
+    #[test]
+    fn credentials_are_restricted_to_official_https_addon_api() {
+        assert!(is_account_endpoint(&reqwest::Url::parse("https://api.eclipsemusic.app/addon/example/music/search").unwrap()));
+        for url in [
+            "http://api.eclipsemusic.app/addon/example", "https://api.eclipsemusic.app/api/search",
+            "https://api.eclipsemusic.app.evil.invalid/addon/example",
+            "https://other.invalid/addon/example", "https://api.eclipsemusic.app:444/addon/example",
+            "https://user@api.eclipsemusic.app/addon/example",
+        ] {
+            assert!(!is_account_endpoint(&reqwest::Url::parse(url).unwrap()));
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires the user's signed-in Eclipse account and network"]
+    async fn live_windows_cloud_resolution() {
+        let resolved = EclipseResolver::new().resolve(
+            &track("Get Lucky", "Daft Punk", 369_000), RequestedQuality::HiRes,
+        ).await.unwrap().expect("Eclipse should resolve the test track");
+        assert!(playable_url(&resolved.url));
+        println!("Resolved {} {}", resolved.provider, resolved.delivered_quality);
+    }
 
     fn track(title: &str, artist: &str, duration_ms: i64) -> TrackQuery {
         TrackQuery {
