@@ -7,6 +7,7 @@ mod db;
 mod diagnostics;
 mod discord;
 mod eclipse;
+mod eclipse_login;
 mod http;
 mod lastfm;
 mod listentogether;
@@ -558,6 +559,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_setting,
             commands::get_eclipse_status,
+            eclipse_login::connect_eclipse,
             commands::get_stream_clients,
             commands::clear_caches,
             commands::get_account,

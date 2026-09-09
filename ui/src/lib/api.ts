@@ -378,7 +378,8 @@ export const getPlayback = () => invoke<PlaybackSnapshot>('get_playback');
 export const getSettings = () => invoke<Record<string, string>>('get_settings');
 export const setSetting = (key: string, value: string) =>
 	invoke<void>('set_setting', { key, value });
-export const getEclipseStatus = () => invoke<{ available: boolean }>('get_eclipse_status');
+export const getEclipseStatus = () => invoke<{ available: boolean; connected: boolean; canConnect: boolean }>('get_eclipse_status');
+export const connectEclipse = () => invoke<void>('connect_eclipse');
 
 /** Display-only stream classification. The backend never exposes addon or media URLs. */
 export function streamQuality(streamClient?: string) {

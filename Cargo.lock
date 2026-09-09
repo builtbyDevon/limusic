@@ -3258,6 +3258,7 @@ dependencies = [
  "rusqlite",
  "rustls",
  "rustypipe-botguard",
+ "security-framework",
  "serde",
  "serde_json",
  "souvlaki",

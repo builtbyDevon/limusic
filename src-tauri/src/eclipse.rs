@@ -114,6 +114,12 @@ pub struct EclipseResolver {
 }
 
 impl EclipseResolver {
+    pub async fn clear_authorization_cache(&self) {
+        *self.account_token.lock().await = None;
+        *self.sources.lock().await = None;
+        self.matches.lock().await.clear();
+        self.failed_streams.lock().await.clear();
+    }
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
@@ -189,6 +195,11 @@ impl EclipseResolver {
             if *expires_at > now {
                 return Ok(sources.clone());
             }
+        }
+        if let Some((_, url)) = tokio::task::spawn_blocking(crate::eclipse_login::credentials).await.ok().flatten() {
+            let sources = vec![Source { base_url: clean_base_url(&url), provider: None, cloud: true, settings: Vec::new() }];
+            *self.sources.lock().await = Some((sources.clone(), now + SOURCE_TTL));
+            return Ok(sources);
         }
         let addons = load_installed_addons()?;
         let mut sources = parse_sources(&addons, "QOBUZ");
@@ -416,6 +427,8 @@ impl EclipseResolver {
                 }
                 #[cfg(target_os = "windows")]
                 { request = request.header("X-Client-Platform", "windows"); }
+                #[cfg(target_os = "macos")]
+                { request = request.header("X-Client-Platform", "macos"); }
             }
             let result = request.send().await;
             if let Ok(response) = result {
@@ -477,7 +490,12 @@ fn load_account_token() -> Option<String> {
     if token.is_empty() { None } else { Some(token) }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn load_account_token() -> Option<String> {
+    crate::eclipse_login::credentials().map(|(token, _)| token)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn load_account_token() -> Option<String> { None }
 
 /// A cheap settings-page probe that never waits on the resolver's async caches.

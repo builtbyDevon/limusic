@@ -1,4 +1,15 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { listen } from '@tauri-apps/api/event';
+	onMount(() => {
+		const connected = listen('eclipse-connected', () => {
+			eclipseConnected = true;
+			eclipseAvailable = true;
+			toast.success('Eclipse connected. Play a song to try lossless.');
+		});
+		const failed = listen<string>('eclipse-login-error', (event) => toast.error(event.payload));
+		return () => { connected.then((stop) => stop()); failed.then((stop) => stop()); };
+	});
 	import { untrack, type Snippet } from 'svelte';
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -149,6 +160,8 @@
 	let settings = $state<Record<string, string>>({});
 	let clients = $state<string[]>([]);
 	let eclipseAvailable = $state<boolean | null>(null);
+	let eclipseConnected = $state(false);
+	let eclipseCanConnect = $state(false);
 	let proxyInput = $state('');
 	let loaded = $state(false);
 	let clearing = $state(false);
@@ -248,7 +261,7 @@
 		loaded = true;
 		api
 			.getEclipseStatus()
-			.then((eclipse) => (eclipseAvailable = eclipse.available))
+			.then((eclipse) => { eclipseAvailable = eclipse.available; eclipseConnected = eclipse.connected; eclipseCanConnect = eclipse.canConnect; })
 			.catch(() => (eclipseAvailable = false));
 	}
 
@@ -621,6 +634,12 @@
 							</div>
 						</section>
 					{:else if tab === 'playback'}
+						{#if eclipseCanConnect}
+							<div class="mb-4 flex items-center justify-between gap-4 rounded-xl border p-4">
+								<div><div class="text-sm font-medium">Eclipse account</div><p class="text-xs text-muted-foreground">{eclipseConnected ? 'Authorization saved in Keychain.' : 'Sign in to authorize your Cloud addon on this Mac.'}</p></div>
+								<button class="rounded-lg border px-3 py-2 text-sm hover:bg-muted" onclick={() => api.connectEclipse().catch((e) => toast.error(String(e)))}>{eclipseConnected ? 'Reconnect Eclipse' : 'Connect Eclipse'}</button>
+							</div>
+						{/if}
 						<section class={GROUP}>
 							<h3 class={LABEL}>{t('settings.sections.audio')}</h3>
 							<div class={CARD}>
